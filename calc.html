@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flexible Trading Compounding Calculator</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f4f6f8;
+        color: #17202a;
+    }
+    .container {
+        max-width: 1100px;
+        margin: 35px auto;
+        padding: 20px;
+    }
+    h1 { margin-bottom: 5px; }
+    .subtitle { color: #667085; margin-top: 0; }
+    .card {
+        background: white;
+        border-radius: 14px;
+        padding: 22px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 18px rgba(0,0,0,.07);
+    }
+    .settings {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+    }
+    label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 7px;
+    }
+    input, textarea, button {
+        width: 100%;
+        font: inherit;
+    }
+    input, textarea {
+        border: 1px solid #d0d5dd;
+        border-radius: 8px;
+        padding: 11px;
+    }
+    textarea {
+        min-height: 220px;
+        resize: vertical;
+        font-family: monospace;
+    }
+    button {
+        margin-top: 15px;
+        padding: 13px;
+        border: 0;
+        border-radius: 8px;
+        background: #111827;
+        color: white;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    button:hover { opacity: .9; }
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+    .stat {
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 15px;
+        border: 1px solid #eaecf0;
+    }
+    .stat-title { color: #667085; font-size: 13px; }
+    .stat-value { font-size: 22px; font-weight: bold; margin-top: 5px; }
+    .table-wrap { overflow-x: auto; }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 700px;
+    }
+    th, td {
+        padding: 10px;
+        border-bottom: 1px solid #eaecf0;
+        text-align: right;
+    }
+    th:first-child, td:first-child,
+    th:nth-child(2), td:nth-child(2) {
+        text-align: left;
+    }
+    th {
+        background: #f8fafc;
+        font-size: 13px;
+    }
+    .positive { color: #16a34a; font-weight: bold; }
+    .negative { color: #dc2626; font-weight: bold; }
+    .hint {
+        font-size: 13px;
+        color: #667085;
+        margin-top: 8px;
+    }
+    @media(max-width: 750px) {
+        .settings, .stats { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+    <h1>Trading Compounding Calculator</h1>
+    <p class="subtitle">
+        Fully flexible compounding calculator driven by your initial fund and target lot sizes.
+    </p>
+
+    <div class="card">
+        <h2>Settings</h2>
+
+        <div class="settings">
+            <div>
+                <label>Starting Fund ($)</label>
+                <input id="startingFund" type="number" value="2000" step="0.01">
+            </div>
+
+            <div>
+                <label>Starting Quantity</label>
+                <input id="startingQty" type="number" value="0.05" step="0.01">
+            </div>
+
+            <div>
+                <label>Point Value ($ per 1.0 Qty)</label>
+                <input id="pointMultiplier" type="number" value="100" step="0.01">
+            </div>
+        </div>
+
+        <p class="hint">
+            Quantity doubles dynamically relative to your Starting Fund scale (e.g. 1x, 2x, 4x Starting Fund) and never decreases on drawdown.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>Enter Trades</h2>
+
+        <label>Trade Results</label>
+
+        <textarea id="tradeInput" placeholder="Jan: +100, +100
+Feb: -15
+Mar: +100, -15, +100"></textarea>
+
+        <button onclick="calculate()">Calculate</button>
+    </div>
+
+    <div class="card">
+        <h2>Results</h2>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-title">Final Fund</div>
+                <div class="stat-value" id="finalFund">$0</div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-title">Total Profit</div>
+                <div class="stat-value" id="profit">$0</div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-title">Return</div>
+                <div class="stat-value" id="returnPct">0%</div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-title">Final Quantity</div>
+                <div class="stat-value" id="finalQty">0</div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-title">Total Trades</div>
+                <div class="stat-value" id="totalTrades">0</div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-title">Winning Trades</div>
+                <div class="stat-value" id="wins">0</div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-title">Losing Trades</div>
+                <div class="stat-value" id="losses">0</div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-title">Win Rate</div>
+                <div class="stat-value" id="winRate">0%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Trade-by-Trade Results</h2>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trade</th>
+                        <th>Month</th>
+                        <th>Points</th>
+                        <th>Quantity Used</th>
+                        <th>PnL</th>
+                        <th>Balance</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function money(value) {
+    return "$" + value.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function parseTrades(text) {
+    const lines = text.split(/\n/).map(x => x.trim()).filter(Boolean);
+    const trades = [];
+
+    const hasMonthFormat = lines.some(line => line.includes(":"));
+
+    if (hasMonthFormat) {
+        for (const line of lines) {
+            const parts = line.split(":");
+            if (parts.length < 2) continue;
+
+            const month = parts[0].trim();
+            const values = parts.slice(1).join(":")
+                .split(/[, ]+/)
+                .map(x => x.trim())
+                .filter(x => x !== "");
+
+            for (const value of values) {
+                const points = Number(value);
+                if (!Number.isNaN(points)) {
+                    trades.push({ month, points });
+                }
+            }
+        }
+    } else {
+        const values = text
+            .split(/[, \n]+/)
+            .map(x => x.trim())
+            .filter(Boolean);
+
+        values.forEach((value) => {
+            const points = Number(value);
+            if (!Number.isNaN(points)) {
+                trades.push({ month: "-", points });
+            }
+        });
+    }
+
+    return trades;
+}
+
+function calculate() {
+    const startingFund = Number(document.getElementById("startingFund").value);
+    const startingQty = Number(document.getElementById("startingQty").value);
+    const pointMultiplier = Number(document.getElementById("pointMultiplier").value);
+
+    if (startingFund <= 0 || startingQty <= 0 || pointMultiplier <= 0) {
+        alert("Please enter valid positive values for settings.");
+        return;
+    }
+
+    const trades = parseTrades(document.getElementById("tradeInput").value);
+
+    if (trades.length === 0) {
+        alert("Please enter at least one trade.");
+        return;
+    }
+
+    let fund = startingFund;
+    let quantity = startingQty;
+    let wins = 0;
+    let losses = 0;
+
+    const rows = [];
+
+    for (let i = 0; i < trades.length; i++) {
+        const trade = trades[i];
+        const tradeQty = quantity;
+
+        // Dynamic PnL: points * lot_size * (dollars_per_point_per_1.0_qty)
+        const pnl = trade.points * tradeQty * pointMultiplier;
+        fund += pnl;
+
+        if (trade.points > 0) wins++;
+        if (trade.points < 0) losses++;
+
+        rows.push({
+            number: i + 1,
+            month: trade.month,
+            points: trade.points,
+            quantity: tradeQty,
+            pnl: pnl,
+            balance: fund
+        });
+
+        // Dynamic Doubling Logic relative to user's initial fund:
+        let dynamicQty = startingQty;
+        let threshold = startingFund;
+
+        while (fund >= threshold * 2) {
+            threshold *= 2;
+            dynamicQty *= 2;
+        }
+
+        // Quantity never decreases on drawdown
+        if (dynamicQty > quantity) {
+            quantity = dynamicQty;
+        }
+    }
+
+    const totalProfit = fund - startingFund;
+    const returnPct = (totalProfit / startingFund) * 100;
+    const winRate = (wins / trades.length) * 100;
+
+    document.getElementById("finalFund").textContent = money(fund);
+    document.getElementById("profit").textContent = money(totalProfit);
+    document.getElementById("returnPct").textContent = returnPct.toFixed(2) + "%";
+    document.getElementById("finalQty").textContent = quantity.toFixed(2);
+    document.getElementById("totalTrades").textContent = trades.length;
+    document.getElementById("wins").textContent = wins;
+    document.getElementById("losses").textContent = losses;
+    document.getElementById("winRate").textContent = winRate.toFixed(2) + "%";
+
+    const body = document.getElementById("resultsBody");
+    body.innerHTML = "";
+
+    rows.forEach(row => {
+        const tr = document.createElement("tr");
+        const pnlClass = row.pnl >= 0 ? "positive" : "negative";
+
+        tr.innerHTML = `
+            <td>${row.number}</td>
+            <td>${row.month}</td>
+            <td>${row.points > 0 ? "+" : ""}${row.points}</td>
+            <td>${row.quantity.toFixed(2)}</td>
+            <td class="${pnlClass}">
+                ${row.pnl >= 0 ? "+" : ""}${money(row.pnl)}
+            </td>
+            <td>${money(row.balance)}</td>
+        `;
+
+        body.appendChild(tr);
+    });
+}
+
+// Default Data
+document.getElementById("tradeInput").value = `Jan: +100, +100
+Feb: -15
+Mar: +100, -15, +100
+Apr: -15, -15, +100, -15, -15
+May: +100, -15, +100, -15, +100
+June: -15, +100, -15
+July: +100, -15, -15
+Aug: +100
+Sept: -15, +100
+Oct: +100, -15, -15, -15
+Nov: +100, +100
+Dec: -15, -15, -15`;
+
+calculate();
+</script>
+
+</body>
+</html>
